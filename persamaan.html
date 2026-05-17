@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TRO — Metode Persamaan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .method-toggle { display: flex; gap: 10px; margin-bottom: 24px; }
+    .toggle-btn {
+      padding: 9px 22px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .toggle-btn.active {
+      background: linear-gradient(135deg, var(--gold), var(--gold-light));
+      color: #0a0f1e;
+      border-color: transparent;
+      font-weight: 600;
+    }
+
+    .size-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    .ctrl-btn {
+      width: 30px; height: 30px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--gold);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .ctrl-btn:hover { background: rgba(201,168,76,0.15); }
+
+    .matrix-grid {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .matrix-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .matrix-coef {
+      width: 68px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 8px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .matrix-coef:focus { border-color: var(--gold); }
+    .var-lbl { font-size: 13px; color: var(--gold-light); min-width: 22px; }
+    .plus-op { font-size: 16px; color: var(--muted); }
+    .eq-sign { font-size: 18px; color: var(--gold); padding: 0 4px; font-weight: 600; }
+    .rhs-coef {
+      width: 80px;
+      background: rgba(201,168,76,0.08);
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 8px;
+      padding: 9px 8px;
+      color: var(--gold-light);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      text-align: center;
+      outline: none;
+    }
+    .rhs-coef:focus { border-color: var(--gold); }
+
+    /* Result */
+    .result-section { animation: fadeUp 0.5s cubic-bezier(.16,1,.3,1) both; }
+    .result-summary {
+      background: linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.05));
+      border: 1px solid rgba(201,168,76,0.3);
+      border-radius: 14px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+    .res-title { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--gold); margin-bottom: 16px; }
+    .res-vars { display: flex; gap: 20px; flex-wrap: wrap; }
+    .res-var {
+      display: flex; flex-direction: column; align-items: center;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 20px; min-width: 80px;
+    }
+    .res-var span { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .res-var strong { font-size: 20px; color: var(--text); }
+
+    .steps-title { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--text); margin-bottom: 20px; }
+    .step-block { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+    .step-header { font-weight: 600; font-size: 15px; color: var(--gold); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .step-note { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-style: italic; }
+
+    .matrix-display { font-family: monospace; font-size: 14px; overflow-x: auto; }
+    .matrix-display table { border-collapse: collapse; min-width: 300px; }
+    .matrix-display td {
+      padding: 8px 16px; text-align: right; color: var(--text);
+      border: 1px solid rgba(201,168,76,0.12);
+    }
+    .matrix-display .pivot-el { background: rgba(201,168,76,0.3); color: #0a0f1e; font-weight: 700; }
+    .matrix-display .aug-line { border-left: 2px solid var(--gold) !important; }
+
+    .no-sol { color: #f87171; font-size: 15px; padding: 16px; background: rgba(220,53,69,0.1); border-radius: 10px; border: 1px solid rgba(220,53,69,0.2); }
+    .inf-sol { color: #fbbf24; font-size: 15px; padding: 16px; background: rgba(251,191,36,0.08); border-radius: 10px; border: 1px solid rgba(251,191,36,0.2); }
+    /* ── NILAI AWAL VARIABEL ── */
+    .init-vars-wrap {
+      margin-top: 20px;
+      background: rgba(201,168,76,0.05);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .init-vars-label {
+      font-size: 12px; font-weight: 700; color: var(--gold);
+      letter-spacing: 0.8px; text-transform: uppercase;
+      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .init-vars-icon { font-size: 14px; }
+    .init-vars-hint { font-weight: 400; color: var(--muted); text-transform: none; letter-spacing: 0; font-size: 11px; }
+    .init-vars-row {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;
+    }
+    .init-var-item {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .init-var-label {
+      font-size: 12px; color: var(--gold-light); font-style: italic;
+    }
+    .init-var-input {
+      width: 72px;
+      background: var(--panel2); border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 8px; padding: 9px 8px; color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: 14px;
+      text-align: center; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      -moz-appearance: textfield;
+    }
+    .init-var-input::-webkit-outer-spin-button,
+    .init-var-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .init-var-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.1); }
+    .init-vars-note { font-size: 11px; color: var(--muted); font-style: italic; }
+
+    /* ── HISTORY ── */
+    .p-history-wrap {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 20px; overflow: hidden; margin-bottom: 32px;
+    }
+    .p-history-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 22px; background: var(--panel2); border-bottom: 1px solid var(--border);
+    }
+    .p-history-head-title {
+      font-family: 'Playfair Display', serif; font-size: 15px; color: var(--text);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .g-history-list { max-height: 300px; overflow-y: auto; }
+    .g-history-list::-webkit-scrollbar { width: 4px; }
+    .g-history-list::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.35); border-radius: 4px; }
+    .g-history-empty { padding: 28px; text-align: center; color: var(--muted); font-size: 13px; font-style: italic; }
+    .g-hist-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 22px; border-bottom: 1px solid rgba(201,168,76,0.06);
+      cursor: pointer; transition: background 0.18s;
+    }
+    .g-hist-item:hover { background: var(--panel2); }
+    .g-hist-item:last-child { border-bottom: none; }
+    .g-hist-icon { width:34px;height:34px;border-radius:8px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0; }
+    .g-hist-body { flex:1;min-width:0; }
+    .g-hist-title { font-size:13px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .g-hist-meta { font-size:11px;color:var(--muted);margin-top:2px; }
+    .g-hist-del { opacity:0;transition:opacity 0.18s;width:26px;height:26px;border-radius:6px;border:1px solid rgba(248,113,113,0.2);background:transparent;color:#f87171;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    .g-hist-item:hover .g-hist-del { opacity:1; }
+    .g-hist-del:hover { background:rgba(248,113,113,0.15); }
+    .history-actions-bar { display:flex;align-items:center;justify-content:space-between;padding:10px 22px;background:rgba(201,168,76,0.03);border-bottom:1px solid var(--border); }
+    .history-count { font-size:12px;color:var(--muted); }
+    .btn-hist-action { padding:6px 13px;border-radius:7px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s; }
+    .btn-dl { background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);color:var(--gold); }
+    .btn-dl:hover { background:rgba(201,168,76,0.2); }
+    .btn-clr { background:transparent;border:1px solid rgba(248,113,113,0.22);color:#f87171; }
+    .btn-clr:hover { background:rgba(248,113,113,0.1); }
+
+    /* ── MODAL ── */
+    .modal-overlay { position:fixed;inset:0;z-index:500;background:rgba(8,12,24,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease both; }
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .modal-box { background:var(--panel);border:1px solid rgba(201,168,76,.4);border-radius:24px;width:100%;max-width:960px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 40px 100px rgba(0,0,0,.7);animation:fadeUp .3s cubic-bezier(.16,1,.3,1) both;position:relative;overflow:hidden; }
+    .modal-box::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent); }
+    .modal-head { display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);background:var(--panel2);flex-shrink:0; }
+    .modal-head-title { font-family:'Playfair Display',serif;font-size:17px;color:var(--text); }
+    .modal-head-meta { font-size:12px;color:var(--muted);margin-top:3px; }
+    .modal-close { width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0; }
+    .modal-close:hover { background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3);color:#f87171; }
+    .modal-body { overflow-y:auto;padding:24px;flex:1; }
+    .modal-body::-webkit-scrollbar{width:5px} .modal-body::-webkit-scrollbar-thumb{background:rgba(201,168,76,.4);border-radius:5px}
+    .modal-foot { padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;background:var(--panel2);flex-shrink:0; }
+    .btn-md { padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s; }
+    .btn-md-dl { background:var(--panel);border:1px solid var(--border);color:var(--text); }
+    .btn-md-dl:hover { border-color:rgba(201,168,76,.4);color:var(--gold); }
+    .btn-md-del { background:transparent;border:1px solid rgba(248,113,113,.25);color:#f87171; }
+    .btn-md-del:hover { background:rgba(248,113,113,.1); }
+
+    /* ── PDF BAR ── */
+    .pdf-bar {
+      display: none; align-items: center; gap: 14px;
+      margin-bottom: 24px; padding: 14px 20px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    }
+    .pdf-bar-text { font-size: 13px; color: var(--muted); flex: 1; }
+    .btn-pdf {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 22px; background: linear-gradient(135deg, #c0392b, #e74c3c);
+      border: none; border-radius: 9px; color: #fff;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; white-space: nowrap; transition: opacity 0.2s, transform 0.15s;
+    }
+    .btn-pdf:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-pdf:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── MISC ── */
+    .corner-table { width:100%;border-collapse:collapse;font-size:13px; }
+    .corner-table th { background:var(--panel2);padding:9px 14px;color:var(--gold);border:1px solid rgba(201,168,76,0.15);font-size:11px;letter-spacing:.4px; }
+    .corner-table td { padding:8px 14px;border:1px solid rgba(201,168,76,0.08);color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center; }
+    .verify-ok { color:#4ade80;font-weight:600; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-brand">
+    <a href="dashboard.html" class="nav-back">← Dashboard</a>
+    <div class="nav-icon">🔢</div>
+    <span class="nav-logo">Metode Persamaan</span>
+  </div>
+  <div class="nav-right">
+    <div class="user-badge">
+      <div class="user-avatar"><span id="userInitial">U</span></div>
+      <span class="user-name" id="userName">Pengguna</span>
+    </div>
+    <button class="btn-logout" onclick="logout()">Keluar</button>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="page-header">
+    <h1 class="page-title">Metode <span>Persamaan</span></h1>
+    <p class="page-desc">Selesaikan Sistem Persamaan Linear (SPL) menggunakan Eliminasi Gauss atau Gauss-Jordan. Lihat transformasi matriks augmented tiap langkah.</p>
+  </div>
+
+  <div class="form-card">
+    <!-- Method -->
+    <div class="form-section">
+      <div class="section-label">Pilih Metode</div>
+      <div class="method-toggle">
+        <button class="toggle-btn active" id="btnGauss" onclick="setMethod('gauss')">Eliminasi Gauss</button>
+        <button class="toggle-btn" id="btnGaussJordan" onclick="setMethod('gaussjordan')">Gauss-Jordan</button>
+      </div>
+    </div>
+
+    <!-- Size -->
+    <div class="form-section">
+      <div class="section-label">Ukuran Sistem (n × n)</div>
+      <div class="size-controls">
+        <span style="font-size:13px;color:var(--muted);">Jumlah Variabel / Persamaan:</span>
+        <button class="ctrl-btn" onclick="changeSize(-1)">−</button>
+        <span id="sizeDisplay" style="color:var(--text);font-size:15px;min-width:20px;text-align:center;">3</span>
+        <button class="ctrl-btn" onclick="changeSize(1)">+</button>
+      </div>
+    </div>
+
+    <!-- Matrix input -->
+    <div class="form-section">
+      <div class="section-label">Masukkan Koefisien</div>
+      <div id="matrixInputs"></div>
+    </div>
+
+    <button class="btn-solve" onclick="solvePersamaan()">⚡ Selesaikan</button>
+  </div>
+
+  <!-- History Panel -->
+  <div class="p-history-wrap">
+    <div class="p-history-head">
+      <div class="p-history-head-title">🕑 Riwayat Perhitungan</div>
+      <div id="pHistActions" style="display:flex;gap:8px;"></div>
+    </div>
+    <div id="persamaanHistory">
+      <div class="g-history-empty">Belum ada riwayat. Selesaikan perhitungan pertama.</div>
+    </div>
+  </div>
+
+  <!-- PDF Bar (muncul setelah selesai) -->
+  <div class="pdf-bar" id="pdfBarPersamaan">
+    <span class="pdf-bar-text">📄 Hasil perhitungan siap diunduh sebagai PDF lengkap</span>
+    <button class="btn-pdf" id="btnPdfPersamaan" onclick="exportToPDF('persamaanResult','TRO_Persamaan',this)">⬇ Unduh PDF</button>
+  </div>
+
+  <div id="persamaanResult"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/exportpdf.js"></script>
+<script src="js/persamaan.js"></script>
+<script>
+  const s = getSession();
+  if (s) {
+    document.getElementById('userName').textContent = s.name;
+    document.getElementById('userInitial').textContent = s.name.charAt(0).toUpperCase();
+  }
+  initPersamaan();
+</script>
+</body>
+</html>
