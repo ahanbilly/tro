@@ -1,308 +1,389 @@
 // ============================================================
-// exportpdf.js — Unduh PDF dengan loading indicator
-// Tidak freeze: overlay tampil dulu, proses berat di setTimeout
+// exportpdf.js — Ekspor Hasil ke PDF
+// FIX CANVAS: Convert semua <canvas> → <img> sebelum screenshot
+// FIX COLORS: Inject CSS vars sebagai inline style
 // ============================================================
 
-(function injectPdfStyles() {
-  if (document.getElementById('_tro_pdf_style')) return;
-  var s = document.createElement('style');
-  s.id = '_tro_pdf_style';
-  s.textContent = `
-    .btn-pdf {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 11px 22px; border-radius: 9px;
-      background: linear-gradient(135deg, #c0392b, #e74c3c);
-      border: none; color: #fff;
-      font-family: 'DM Sans', sans-serif; font-size: 13px;
-      font-weight: 600; cursor: pointer; letter-spacing: 0.3px;
-      transition: opacity 0.2s, transform 0.15s; white-space: nowrap;
-    }
-    .btn-pdf:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-    .btn-pdf:active:not(:disabled) { transform: translateY(0); }
-    .btn-pdf:disabled { opacity: 0.5; cursor: not-allowed; }
+const CSS_VARS = {
+  '--gold':        '#c9a84c',
+  '--gold-light':  '#e8c97a',
+  '--deep':        '#0a0f1e',
+  '--panel':       '#111827',
+  '--panel2':      '#1a2235',
+  '--panel3':      '#0f1624',
+  '--text':        '#e8e6e0',
+  '--muted':       '#7a8499',
+  '--border':      'rgba(201,168,76,0.2)',
+  '--success':     '#4ade80',
+  '--danger':      '#f87171',
+  '--warn':        '#fbbf24',
+};
 
-    .pdf-bar {
-      display: flex; align-items: center; gap: 14px;
-      margin-bottom: 24px; padding: 14px 20px;
-      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    }
-    .pdf-bar-text { font-size: 13px; color: var(--muted); flex: 1; }
+// ─────────────────────────────────────────────────────────────
+// KUNCI UTAMA: Ganti semua <canvas> dengan <img> di dalam clone
+// Canvas hanya ada di memori GPU — saat di-clone isinya hilang.
+// Solusi: toDataURL() dulu dari canvas ASLI, lalu inject ke img.
+// ─────────────────────────────────────────────────────────────
+function replaceCanvasWithImages(sourceEl, cloneEl) {
+  const sourceCanvases = sourceEl.querySelectorAll('canvas');
+  const cloneCanvases  = cloneEl.querySelectorAll('canvas');
 
-    /* ── OVERLAY — tampil SEBELUM proses berat ── */
-    .pdf-overlay {
-      position: fixed; inset: 0; z-index: 9999;
-      background: rgba(8,12,24,0.92);
-      backdrop-filter: blur(12px);
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 0;
-    }
-    .pdf-overlay-box {
-      background: #0f1624;
-      border: 1px solid rgba(201,168,76,0.4);
-      border-radius: 20px; padding: 36px 48px;
-      text-align: center; min-width: 300px; max-width: 380px;
-      position: relative; overflow: hidden;
-    }
-    .pdf-overlay-box::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, #c9a84c, transparent);
-    }
-    .pdf-overlay-icon {
-      font-size: 42px; margin-bottom: 14px; display: block;
-      animation: pdfBounce 1.1s ease-in-out infinite;
-    }
-    @keyframes pdfBounce {
-      0%,100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); }
-    }
-    .pdf-overlay-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 18px; color: #ece9e0; margin-bottom: 6px;
-    }
-    .pdf-overlay-msg {
-      font-size: 13px; color: #6a7590; margin-bottom: 20px;
-      min-height: 20px; transition: all 0.3s;
-    }
-    .pdf-overlay-bar-wrap {
-      width: 100%; height: 6px; background: rgba(201,168,76,0.15);
-      border-radius: 6px; overflow: hidden; margin-bottom: 14px;
-    }
-    .pdf-overlay-bar {
-      height: 100%; width: 0%;
-      background: linear-gradient(90deg, #c9a84c, #e8c97a);
-      border-radius: 6px; transition: width 0.5s ease;
-    }
-    .pdf-overlay-tip {
-      font-size: 11px; color: rgba(106,117,144,0.7);
-      font-style: italic;
-    }
+  sourceCanvases.forEach((srcCanvas, i) => {
+    const cloneCanvas = cloneCanvases[i];
+    if (!cloneCanvas) return;
 
-    .pdf-toast {
-      position: fixed; bottom: 28px; right: 24px; z-index: 9998;
-      padding: 12px 20px; border-radius: 12px;
-      font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      max-width: 320px;
+    try {
+      // Ambil gambar dari canvas ASLI (yang sudah ada isinya)
+      const dataUrl = srcCanvas.toDataURL('image/png');
+
+      // Buat <img> pengganti
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.width  = srcCanvas.offsetWidth  + 'px';
+      img.style.height = srcCanvas.offsetHeight + 'px';
+      img.style.display = 'block';
+      img.style.borderRadius = getComputedStyle(srcCanvas).borderRadius || '0';
+      img.style.background = '#080e1a';
+
+      // Ganti canvas di clone dengan img
+      cloneCanvas.parentNode.replaceChild(img, cloneCanvas);
+    } catch (e) {
+      console.warn('Canvas toDataURL gagal:', e);
     }
-    .pdf-toast.ok  { background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.3); color: #4ade80; }
-    .pdf-toast.err { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
-    .pdf-toast.warn{ background: rgba(251,191,36,0.12);  border: 1px solid rgba(251,191,36,0.3);  color: #fbbf24; }
-  `;
-  document.head.appendChild(s);
-})();
-
-// ── Fungsi utama ──────────────────────────────────────────────
-function exportToPDF(containerId, filename, btnEl) {
-  var el = document.getElementById(containerId);
-  if (!el || !el.innerHTML.trim()) {
-    pdfToast('⚠️ Selesaikan perhitungan terlebih dahulu.', 'warn'); return;
-  }
-  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
-    pdfToast('⏳ Library belum siap, tunggu sebentar lalu coba lagi.', 'warn'); return;
-  }
-
-  // Disable tombol
-  if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '⏳ Menyiapkan...'; }
-
-  // Tampilkan overlay DULU — beri browser 1 frame untuk render overlay
-  // baru mulai proses berat (tidak freeze)
-  var overlay = showPdfOverlay();
-
-  // requestAnimationFrame x2 memastikan overlay benar-benar tampil di layar
-  // sebelum html2canvas mulai memblok thread
-  requestAnimationFrame(function() {
-    requestAnimationFrame(function() {
-      // Tambah sedikit delay lagi untuk HP yang lambat
-      setTimeout(function() {
-        _runExport(el, filename, btnEl, overlay);
-      }, 80);
-    });
   });
 }
 
-async function _runExport(el, filename, btnEl, overlay) {
+// ─────────────────────────────────────────────────────────────
+// Inject CSS vars ke semua elemen
+// ─────────────────────────────────────────────────────────────
+function injectCSSVars(el) {
+  Object.entries(CSS_VARS).forEach(([k, v]) => el.style.setProperty(k, v));
+  el.querySelectorAll('*').forEach(child => {
+    Object.entries(CSS_VARS).forEach(([k, v]) => child.style.setProperty(k, v));
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Patch warna inline (untuk elemen yang pakai CSS class-based color)
+// ─────────────────────────────────────────────────────────────
+function patchColors(root) {
+  const map = {
+    'step-block':       { background:'#111827', border:'1px solid rgba(201,168,76,0.2)' },
+    'sub-block':        { background:'#1a2235', border:'1px solid rgba(201,168,76,0.12)' },
+    'math-box':         { background:'rgba(0,0,0,0.25)', border:'1px solid rgba(201,168,76,0.1)' },
+    'mbox':             { background:'#1a2235', borderLeft:'3px solid rgba(201,168,76,0.35)' },
+    'result-summary':   { background:'rgba(201,168,76,0.1)', border:'1px solid rgba(201,168,76,0.35)' },
+    'res-var':          { background:'#111827', border:'1px solid rgba(201,168,76,0.2)' },
+    'step-header':      { color:'#c9a84c', borderBottom:'1px solid rgba(201,168,76,0.2)' },
+    'step-block':       { background:'#111827', border:'1px solid rgba(201,168,76,0.2)' },
+    'sub-header':       { color:'#e8e6e0' },
+    'sub-badge':        { background:'#c9a84c', color:'#0a0f1e' },
+    'res-title':        { color:'#c9a84c' },
+    'res-z':            { color:'#e8e6e0' },
+    's-explain':        { color:'#7a8499' },
+    'mb-goal':          { color:'#e8c97a', fontWeight:'600' },
+    'goal':             { color:'#e8c97a', fontWeight:'600' },
+    'mb-label':         { color:'#c9a84c', fontWeight:'600' },
+    'lbl':              { color:'#c9a84c', fontWeight:'700' },
+    'mb-con':           { color:'#e8e6e0' },
+    'con':              { color:'#e8e6e0' },
+    'mb-note':          { color:'#7a8499' },
+    'note':             { color:'#7a8499' },
+    'con-num':          { color:'#c9a84c', fontWeight:'600' },
+    'ineq':             { color:'#e8c97a', fontWeight:'700' },
+    'iq':               { color:'#c9a84c', fontWeight:'700' },
+    'rhs':              { color:'#e8e6e0', fontWeight:'600' },
+    'rv':               { color:'#e8c97a', fontWeight:'600' },
+    'verify-ok':        { color:'#4ade80', fontWeight:'600' },
+    'ok':               { color:'#4ade80', fontWeight:'600' },
+    'slk-add':          { color:'#4ade80', fontWeight:'600' },
+    'slk-sub':          { color:'#fb923c', fontWeight:'600' },
+    'hvar':             { background:'rgba(201,168,76,0.2)', color:'#c9a84c' },
+    'optimal-note':     { color:'#4ade80', background:'rgba(74,222,128,0.08)' },
+    'not-optimal-note': { color:'#fb923c', background:'rgba(251,146,60,0.08)' },
+    'no-sol':           { color:'#f87171', background:'rgba(220,53,69,0.1)' },
+    'tableau-note':     { color:'#7a8499' },
+    'basis-cell':       { color:'#e8c97a', background:'rgba(201,168,76,0.06)' },
+    'pivot-cell':       { background:'rgba(201,168,76,0.4)', color:'#0a0f1e', fontWeight:'700' },
+    'piv-col':          { background:'rgba(201,168,76,0.08)' },
+    'piv-row':          { background:'rgba(201,168,76,0.05)' },
+    'zcell':            { background:'#1a2235', border:'1px solid rgba(201,168,76,0.15)' },
+    'zcell-pivot':      { background:'rgba(201,168,76,0.25)', border:'1px solid #c9a84c' },
+    'zcell-var':        { color:'#7a8499' },
+    'zcell-val':        { color:'#e8e6e0' },
+    'min-tag':          { color:'#c9a84c', fontWeight:'700' },
+    'op-section-title': { color:'#e8c97a', fontWeight:'600' },
+    'opt-badge':        { color:'#c9a84c', fontWeight:'700' },
+    'opt-row':          { background:'rgba(201,168,76,0.12)' },
+    'g-hist-z':         { color:'#c9a84c' },
+    'history-item-z':   { color:'#c9a84c' },
+    'noneg':            { color:'#7a8499', fontStyle:'italic' },
+    'graph-wrap':       { background:'#080e1a', borderRadius:'14px' },
+    'legend-item':      { background:'#1a2235', color:'#7a8499' },
+    'corner-table':     {},
+    'xfer-panel':       { background:'rgba(201,168,76,0.08)', border:'1px solid rgba(201,168,76,0.22)' },
+    'xfer-title':       { color:'#c9a84c', fontWeight:'700' },
+  };
+
+  root.querySelectorAll('*').forEach(el => {
+    el.classList.forEach(cls => {
+      if (map[cls]) Object.assign(el.style, map[cls]);
+    });
+
+    if (el.tagName === 'TABLE') { el.style.borderCollapse = 'collapse'; el.style.width = '100%'; }
+    if (el.tagName === 'TH') {
+      if (!el.style.background) el.style.background = '#1a2235';
+      if (!el.style.color) el.style.color = '#c9a84c';
+      el.style.padding = '8px 12px';
+      el.style.border = '1px solid rgba(201,168,76,0.15)';
+      el.style.textAlign = 'center';
+    }
+    if (el.tagName === 'TD') {
+      if (!el.style.padding) el.style.padding = '7px 12px';
+      if (!el.style.border) el.style.border = '1px solid rgba(201,168,76,0.1)';
+      el.style.textAlign = 'center';
+      if (!el.style.color) el.style.color = '#e8e6e0';
+    }
+    if (el.classList.contains('tr-before')) el.querySelectorAll('td').forEach(td => { td.style.color = '#7a8499'; td.style.background = 'rgba(0,0,0,0.15)'; });
+    if (el.classList.contains('tr-op'))     el.querySelectorAll('td').forEach(td => { td.style.color = '#fb923c'; td.style.background = 'rgba(251,146,60,0.06)'; });
+    if (el.classList.contains('tr-after'))  el.querySelectorAll('td').forEach(td => { td.style.color = '#4ade80'; td.style.fontWeight = '600'; td.style.background = 'rgba(74,222,128,0.06)'; });
+    if (el.classList.contains('tr-win'))    el.querySelectorAll('td').forEach(td => { td.style.background = 'rgba(201,168,76,0.12)'; td.style.color = '#e8e6e0'; });
+    if (el.classList.contains('obj-row'))   el.querySelectorAll('td').forEach(td => { td.style.background = 'rgba(201,168,76,0.06)'; td.style.color = '#e8c97a'; });
+    if (el.classList.contains('opt-row'))   el.querySelectorAll('td').forEach(td => { td.style.background = 'rgba(201,168,76,0.12)'; td.style.color = '#e8c97a'; td.style.fontWeight = '600'; });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// FUNGSI UTAMA EXPORT PDF
+// ─────────────────────────────────────────────────────────────
+async function exportToPDF(resultId, method, subtitle, filename, btnId) {
+  const resultEl = document.getElementById(resultId);
+  if (!resultEl || !resultEl.innerHTML.trim()) {
+    alert('Belum ada hasil untuk diekspor. Selesaikan perhitungan terlebih dahulu.');
+    return;
+  }
+  if (typeof window.jspdf === 'undefined' || typeof html2canvas === 'undefined') {
+    alert('Library PDF belum siap. Pastikan koneksi internet aktif dan coba lagi.');
+    return;
+  }
+
+  const btn = btnId
+    ? document.getElementById(btnId)
+    : document.querySelector('[id^="btnPdf"]');
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '⏳ Membuat PDF...'; btn.disabled = true; }
+
   try {
-    setOvProgress(overlay, 10, 'Menyiapkan konten...');
-    await tick(); // beri browser napas
+    const { jsPDF } = window.jspdf;
 
-    // Clone elemen
-    var clone = el.cloneNode(true);
-    clone.style.cssText = [
-      'position:fixed','top:0','left:0',
-      'width:820px','z-index:-9999',
-      'background:#0f1624','color:#ece9e0',
-      'padding:28px 32px',
-      'font-family:DM Sans,sans-serif',
-      'pointer-events:none','opacity:0'
+    // Buat wrapper clone di luar layar
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = [
+      'position:fixed', 'left:-9999px', 'top:0',
+      'width:960px', 'padding:24px', 'box-sizing:border-box',
+      'font-family:DM Sans,sans-serif', 'font-size:14px', 'line-height:1.6',
+      'background-color:#0a0f1e', 'color:#e8e6e0', 'z-index:-9999',
     ].join(';');
+    Object.entries(CSS_VARS).forEach(([k, v]) => wrapper.style.setProperty(k, v));
 
-    // Salin canvas (grafik) ke clone
-    var srcCanvases = el.querySelectorAll('canvas');
-    var dstCanvases = clone.querySelectorAll('canvas');
-    srcCanvases.forEach(function(sc, i) {
-      if (!dstCanvases[i]) return;
-      dstCanvases[i].width  = sc.width;
-      dstCanvases[i].height = sc.height;
-      dstCanvases[i].getContext('2d').drawImage(sc, 0, 0);
+    // Clone konten
+    const clone = resultEl.cloneNode(true);
+    clone.style.cssText = 'background:transparent;color:#e8e6e0;';
+
+    // ★ KUNCI: Ganti canvas di clone dengan gambar dari canvas asli
+    replaceCanvasWithImages(resultEl, clone);
+
+    injectCSSVars(clone);
+    patchColors(clone);
+
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    // Tunggu semua <img> dari canvas selesai load
+    await waitImagesLoaded(wrapper);
+    await new Promise(r => setTimeout(r, 150));
+
+    // Screenshot
+    const canvas = await html2canvas(wrapper, {
+      scale: 2, useCORS: true, allowTaint: true,
+      backgroundColor: '#0a0f1e', logging: false,
+      width: 960, windowWidth: 960,
     });
 
-    document.body.appendChild(clone);
-    setOvProgress(overlay, 25, 'Mengukur halaman...');
-    await tick();
+    document.body.removeChild(wrapper);
 
-    setOvProgress(overlay, 35, 'Merender gambar... (proses ini butuh beberapa detik)');
-    await tick();
-
-    // html2canvas — proses paling berat
-    var canvas = await html2canvas(clone, {
-      scale: 1.2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#0f1624',
-      logging: false,
-      width: clone.scrollWidth,
-      height: clone.scrollHeight,
-      windowWidth: 860,
-      onclone: function() {
-        setOvProgress(overlay, 55, 'Memproses elemen...');
-      }
-    });
-
-    document.body.removeChild(clone);
-    setOvProgress(overlay, 68, 'Gambar selesai, menyusun PDF...');
-    await tick();
-
-    // Buat PDF
-    var { jsPDF } = window.jspdf;
-    var pdf  = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-    var pgW  = pdf.internal.pageSize.getWidth();
-    var pgH  = pdf.internal.pageSize.getHeight();
-    var marg = 12;
-    var cntW = pgW - marg * 2;
-    var hdH  = 13;
-    var ftH  = 10;
-    var cntH = pgH - marg * 2 - hdH - ftH;
-
-    var pxToMm = 0.264583;
-    var scale  = cntW / (canvas.width * pxToMm);
-    var totalH = canvas.height * pxToMm * scale;
-    var pages  = Math.ceil(totalH / cntH);
-    var now    = new Date().toLocaleString('id-ID', { dateStyle:'long', timeStyle:'short' });
-
-    setOvProgress(overlay, 72, 'Membuat ' + pages + ' halaman PDF...');
-    await tick();
-
-    for (var p = 0; p < pages; p++) {
-      if (p > 0) pdf.addPage();
-
-      // Progress per halaman
-      var pct = 72 + Math.round((p / pages) * 20);
-      setOvProgress(overlay, pct, 'Halaman ' + (p+1) + ' dari ' + pages + '...');
-
-      // Background
-      pdf.setFillColor(15, 22, 36);
-      pdf.rect(0, 0, pgW, pgH, 'F');
-
-      // Header
-      pdf.setDrawColor(201, 168, 76); pdf.setLineWidth(0.4);
-      pdf.line(marg, marg+hdH-1, pgW-marg, marg+hdH-1);
-      pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
-      pdf.setTextColor(201, 168, 76);
-      pdf.text('TRO — Teknik Riset Operasi', marg, marg+5);
-      pdf.setFont('helvetica','normal'); pdf.setTextColor(106, 117, 144);
-      pdf.text('Hal. '+(p+1)+' / '+pages, pgW-marg, marg+5, { align:'right' });
-
-      // Slice
-      var srcYpx = (p * cntH / scale) / pxToMm;
-      var slHpx  = Math.min((cntH / scale) / pxToMm, canvas.height - srcYpx);
-      var slCanvas = document.createElement('canvas');
-      slCanvas.width  = canvas.width;
-      slCanvas.height = Math.ceil(slHpx);
-      var slCtx = slCanvas.getContext('2d');
-      slCtx.fillStyle = '#0f1624';
-      slCtx.fillRect(0, 0, slCanvas.width, slCanvas.height);
-      slCtx.drawImage(canvas, 0, -srcYpx);
-
-      pdf.addImage(
-        slCanvas.toDataURL('image/jpeg', 0.72), 'JPEG',
-        marg, marg+hdH, cntW, slHpx*pxToMm*scale
-      );
-
-      // Footer
-      pdf.setDrawColor(201,168,76); pdf.setLineWidth(0.3);
-      pdf.line(marg, pgH-marg-ftH+2, pgW-marg, pgH-marg-ftH+2);
-      pdf.setFontSize(8); pdf.setTextColor(106,117,144);
-      pdf.text('Dicetak: '+now, marg, pgH-marg-2);
-      pdf.text(filename, pgW-marg, pgH-marg-2, { align:'right' });
+    if (canvas.height === 0) {
+      alert('Konten tidak terdeteksi. Coba selesaikan perhitungan ulang.');
+      return;
     }
 
-    setOvProgress(overlay, 95, 'Menyimpan file...');
-    await tick();
+    // Build PDF
+    await buildPDF(canvas, pdf => pdf.save(`${filename}_${_dateTag()}.pdf`),
+      method, subtitle);
 
-    pdf.save(filename + '_' + new Date().toISOString().slice(0,10) + '.pdf');
-
-    setOvProgress(overlay, 100, 'Selesai! ✅');
-    setTimeout(function() { rmOverlay(overlay); }, 900);
-    pdfToast('✅ PDF berhasil disimpan!', 'ok');
-
-  } catch(err) {
-    console.error(err);
-    rmOverlay(overlay);
-    pdfToast('❌ Gagal: ' + err.message, 'err');
+  } catch (err) {
+    console.error('PDF Error:', err);
+    alert('Gagal membuat PDF.\nError: ' + err.message);
   } finally {
-    if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = '⬇ Unduh PDF'; }
+    const stray = document.body.querySelector('div[style*="-9999px"]');
+    if (stray) document.body.removeChild(stray);
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
   }
 }
 
-// Beri browser 1 frame untuk update UI
-function tick() {
-  return new Promise(function(resolve) {
-    requestAnimationFrame(function() { setTimeout(resolve, 16); });
-  });
+// ─────────────────────────────────────────────────────────────
+// Export PDF dari elemen modal (untuk history grafik)
+// ─────────────────────────────────────────────────────────────
+async function exportFromModal(modalBodyId, method, subtitle, filename, btn, timestamp) {
+  const bodyEl = document.getElementById(modalBodyId);
+  if (!bodyEl) { alert('Konten modal tidak ditemukan.'); return; }
+  if (typeof window.jspdf === 'undefined' || typeof html2canvas === 'undefined') {
+    alert('Library PDF belum siap. Pastikan koneksi internet aktif.'); return;
+  }
+
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '⏳ Membuat PDF...'; btn.disabled = true; }
+
+  try {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:960px;padding:24px;box-sizing:border-box;font-family:DM Sans,sans-serif;background-color:#0a0f1e;color:#e8e6e0;z-index:-9999;';
+    Object.entries(CSS_VARS).forEach(([k, v]) => wrapper.style.setProperty(k, v));
+
+    const clone = bodyEl.cloneNode(true);
+    clone.style.cssText = 'background:transparent;color:#e8e6e0;';
+
+    // ★ Ganti canvas di clone dengan gambar dari canvas di modal body (asli)
+    replaceCanvasWithImages(bodyEl, clone);
+
+    injectCSSVars(clone);
+    patchColors(clone);
+
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    await waitImagesLoaded(wrapper);
+    await new Promise(r => setTimeout(r, 150));
+
+    const canvas = await html2canvas(wrapper, {
+      scale: 2, useCORS: true, allowTaint: true,
+      backgroundColor: '#0a0f1e', logging: false,
+      width: 960, windowWidth: 960,
+    });
+
+    document.body.removeChild(wrapper);
+
+    await buildPDF(canvas, pdf => pdf.save(`${filename}_${_dateTag()}.pdf`), method, subtitle);
+
+  } catch (err) {
+    console.error(err);
+    alert('Gagal membuat PDF.\n' + err.message);
+  } finally {
+    const stray = document.body.querySelector('div[style*="-9999px"]');
+    if (stray) document.body.removeChild(stray);
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+  }
 }
 
-// ── Shortcut per halaman ──────────────────────────────────────
-function exportSimplexPDF(btn)   { exportToPDF('simplexResult',   'TRO_Simplex',   btn); }
-function exportPersamaanPDF(btn) { exportToPDF('persamaanResult', 'TRO_Persamaan', btn); }
-function exportGrafikPDF(btn)    { exportToPDF('grafikResult',    'TRO_Grafik',    btn); }
+// ─────────────────────────────────────────────────────────────
+// Build PDF dari canvas screenshot
+// ─────────────────────────────────────────────────────────────
+async function buildPDF(canvas, saveFn, method, subtitle) {
+  const { jsPDF } = window.jspdf;
+  const imgW = canvas.width, imgH = canvas.height;
+  const pdfW = 210, pdfH = 297, margin = 12, headerH = 26;
+  const contentW = pdfW - margin * 2;
+  const contentH = pdfH - headerH - margin * 2;
+  const scaledH = (imgH / imgW) * contentW;
+  const totalPages = Math.max(1, Math.ceil(scaledH / contentH));
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-// ── Overlay helpers ───────────────────────────────────────────
-function showPdfOverlay() {
-  var o = document.createElement('div');
-  o.className = 'pdf-overlay';
-  o.id = '_pdfOverlay';
-  o.innerHTML =
-    '<div class="pdf-overlay-box">' +
-    '<span class="pdf-overlay-icon">📄</span>' +
-    '<div class="pdf-overlay-title">Membuat PDF</div>' +
-    '<div class="pdf-overlay-msg" id="_pdfMsg">Menyiapkan...</div>' +
-    '<div class="pdf-overlay-bar-wrap"><div class="pdf-overlay-bar" id="_pdfBar"></div></div>' +
-    '<div class="pdf-overlay-tip">Jangan tutup halaman ini</div>' +
-    '</div>';
-  document.body.appendChild(o);
-  document.body.style.overflow = 'hidden';
-  return o;
+  for (let page = 0; page < totalPages; page++) {
+    if (page > 0) pdf.addPage();
+    _drawHeader(pdf, method, subtitle, page + 1, totalPages, pdfW, margin, headerH);
+
+    const pxPerMm = imgW / contentW;
+    const srcY = Math.floor(page * contentH * pxPerMm);
+    const srcH = Math.min(Math.ceil(contentH * pxPerMm), imgH - srcY);
+    if (srcH <= 0) continue;
+
+    const pc = document.createElement('canvas');
+    pc.width = imgW; pc.height = srcH;
+    const pCtx = pc.getContext('2d');
+    pCtx.fillStyle = '#0a0f1e';
+    pCtx.fillRect(0, 0, imgW, srcH);
+    pCtx.drawImage(canvas, 0, srcY, imgW, srcH, 0, 0, imgW, srcH);
+
+    const renderH = Math.min(srcH / pxPerMm, contentH);
+    pdf.addImage(pc.toDataURL('image/png'), 'PNG', margin, headerH + margin, contentW, renderH);
+    _drawFooter(pdf, page + 1, totalPages, pdfW, pdfH, margin);
+  }
+
+  saveFn(pdf);
 }
 
-function setOvProgress(o, pct, msg) {
-  var bar   = document.getElementById('_pdfBar');
-  var msgEl = document.getElementById('_pdfMsg');
-  if (bar)   bar.style.width = pct + '%';
-  if (msgEl) msgEl.textContent = msg;
+// ─────────────────────────────────────────────────────────────
+// Tunggu semua <img> dalam elemen selesai load
+// ─────────────────────────────────────────────────────────────
+function waitImagesLoaded(el) {
+  const imgs = Array.from(el.querySelectorAll('img'));
+  if (!imgs.length) return Promise.resolve();
+  return Promise.all(imgs.map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(res => { img.onload = res; img.onerror = res; });
+  }));
 }
 
-function rmOverlay(o) {
-  if (o && o.parentNode) o.parentNode.removeChild(o);
-  document.body.style.overflow = '';
+// ─────────────────────────────────────────────────────────────
+// Header & Footer PDF
+// ─────────────────────────────────────────────────────────────
+function _drawHeader(pdf, method, subtitle, page, total, pdfW, margin, headerH) {
+  pdf.setFillColor(10, 15, 30);
+  pdf.rect(0, 0, pdfW, headerH, 'F');
+  pdf.setDrawColor(201, 168, 76);
+  pdf.setLineWidth(0.4);
+  pdf.line(0, headerH, pdfW, headerH);
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(12); pdf.setTextColor(201, 168, 76);
+  pdf.text('TRO', margin, 9);
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(200, 196, 188);
+  pdf.text(`Metode ${method}${subtitle ? ' — ' + subtitle : ''}`, margin + 13, 9);
+  pdf.setFontSize(7.5); pdf.setTextColor(100, 110, 130);
+  pdf.text(new Date().toLocaleString('id-ID', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' }), pdfW - margin, 9, { align: 'right' });
+  pdf.text(`Halaman ${page} / ${total}`, pdfW - margin, 17, { align: 'right' });
+  pdf.text('Teknik Riset Operasi — Platform Komputasi', margin, 21);
 }
 
-function pdfToast(msg, type) {
-  var t = document.createElement('div');
-  t.className = 'pdf-toast ' + type;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(function() {
-    t.style.transition = 'opacity 0.4s'; t.style.opacity = '0';
-    setTimeout(function() { if (t.parentNode) t.parentNode.removeChild(t); }, 400);
-  }, 3500);
+function _drawFooter(pdf, page, total, pdfW, pdfH, margin) {
+  pdf.setDrawColor(201, 168, 76); pdf.setLineWidth(0.25);
+  pdf.line(margin, pdfH - 9, pdfW - margin, pdfH - 9);
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(100, 110, 130);
+  pdf.text('Platform TRO — Teknik Riset Operasi', margin, pdfH - 5);
+  pdf.text(`Halaman ${page} dari ${total}`, pdfW - margin, pdfH - 5, { align: 'right' });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper
+// ─────────────────────────────────────────────────────────────
+function _dateTag() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shortcut per metode — dipanggil dari tombol di HTML
+// ─────────────────────────────────────────────────────────────
+function exportSimplexPDF() {
+  const isMin = typeof simplexState !== 'undefined' && simplexState.objective === 'min';
+  exportToPDF('simplexResult', 'Simplex', isMin ? 'Minimasi' : 'Maksimasi', 'TRO_Simplex', 'btnPdfSimplex');
+}
+
+function exportPersamaanPDF() {
+  const method = typeof pState !== 'undefined'
+    ? (pState.method === 'gauss' ? 'Eliminasi Gauss' : 'Gauss-Jordan')
+    : 'Persamaan';
+  exportToPDF('persamaanResult', 'Persamaan', method, 'TRO_Persamaan', 'btnPdfPersamaan');
+}
+
+function exportGrafikPDFLive() {
+  const isMin = typeof GS !== 'undefined' && GS.objective === 'min';
+  exportToPDF('grafikResult', 'Grafik', isMin ? 'Minimasi' : 'Maksimasi', 'TRO_Grafik', 'btnPdfGrafik');
 }
