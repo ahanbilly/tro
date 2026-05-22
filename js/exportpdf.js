@@ -123,18 +123,40 @@ function exportToPDF(containerId, filename, btnEl) {
 async function _runExport(el, filename, btnEl, overlay) {
   try {
     setOvProgress(overlay, 10, 'Menyiapkan konten...');
-    await tick(); // beri browser napas
+    await tick();
 
     // Clone elemen
     var clone = el.cloneNode(true);
+    // KUNCI: position:absolute + top:-99999px agar tidak terlihat user
+    // tapi browser tetap render full height (bukan hanya visible area)
     clone.style.cssText = [
-      'position:fixed','top:0','left:0',
-      'width:820px','z-index:-9999',
-      'background:#0f1624','color:#ece9e0',
+      'position:absolute',
+      'top:-99999px',
+      'left:0',
+      'width:820px',
+      'z-index:-9999',
+      'background:#0f1624',
+      'color:#ece9e0',
       'padding:28px 32px',
       'font-family:DM Sans,sans-serif',
-      'pointer-events:none','opacity:0'
+      'pointer-events:none',
+      'overflow:visible',   // PENTING: jangan clip konten
+      'max-height:none',    // PENTING: hapus max-height dari modal
+      'height:auto'
     ].join(';');
+
+    // Hapus semua overflow:hidden/auto dari child elements
+    // agar html2canvas bisa capture semua konten
+    clone.querySelectorAll('*').forEach(function(node) {
+      var style = node.style;
+      if (style.overflow === 'hidden' || style.overflow === 'auto' ||
+          style.overflowY === 'hidden' || style.overflowY === 'auto') {
+        style.overflow = 'visible';
+        style.overflowY = 'visible';
+        style.maxHeight = 'none';
+        style.height = 'auto';
+      }
+    });
 
     // Salin canvas (grafik) ke clone
     var srcCanvases = el.querySelectorAll('canvas');
@@ -150,6 +172,9 @@ async function _runExport(el, filename, btnEl, overlay) {
     setOvProgress(overlay, 25, 'Mengukur halaman...');
     await tick();
 
+    // Ukur tinggi penuh setelah di-render browser
+    var fullHeight = clone.scrollHeight || clone.offsetHeight;
+
     setOvProgress(overlay, 35, 'Merender gambar... (proses ini butuh beberapa detik)');
     await tick();
 
@@ -160,9 +185,11 @@ async function _runExport(el, filename, btnEl, overlay) {
       allowTaint: true,
       backgroundColor: '#0f1624',
       logging: false,
-      width: clone.scrollWidth,
-      height: clone.scrollHeight,
+      width: 820,
+      height: fullHeight,
       windowWidth: 860,
+      scrollX: 0,
+      scrollY: 0,
       onclone: function() {
         setOvProgress(overlay, 55, 'Memproses elemen...');
       }
