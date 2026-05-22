@@ -586,49 +586,165 @@ function openSimplexModal(id) {
   const entry = getSimplexHistory().find(e => e.id === id);
   if (!entry) return;
 
+  // Hapus modal lama jika ada
+  const existing = document.getElementById('sxModal');
+  if (existing) existing.remove();
+
   const t = new Date(entry.timestamp).toLocaleString('id-ID', {dateStyle:'long', timeStyle:'short'});
   const hasDetail = !!entry.fullHtml;
 
-  // Summary header selalu tampil
-  const solSummary = entry.result
-    ? `<div class="result-summary" style="margin-bottom:18px;">
-        <div class="res-title">Solusi ${entry.type}</div>
-        <div class="res-vars">
-          ${(entry.result.variables||[]).map((v,i)=>`<div class="res-var"><span>x<sub>${i+1}</sub></span><strong>${v.toFixed(4)}</strong></div>`).join('')}
-        </div>
-        <div class="res-z">Z = <strong>${entry.result.z !== undefined ? entry.result.z.toFixed(4) : '—'}</strong></div>
-      </div>` : '';
+  const solSummary = entry.result ? `
+    <div style="background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.04));
+      border:1px solid rgba(201,168,76,0.3);border-radius:16px;padding:24px 28px;margin-bottom:20px;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.6),transparent);"></div>
+      <div style="font-family:'Playfair Display',serif;font-size:16px;color:var(--gold);margin-bottom:14px;">◈ Solusi ${entry.type}</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        ${(entry.result.variables||[]).map((v,i)=>`
+          <div style="display:flex;flex-direction:column;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:72px;">
+            <span style="font-size:11px;color:var(--muted);margin-bottom:5px;">x<sub>${i+1}</sub></span>
+            <strong style="font-size:20px;color:var(--text);font-family:'JetBrains Mono',monospace;">${v.toFixed(4)}</strong>
+          </div>`).join('')}
+      </div>
+      <div style="font-size:15px;color:var(--text-dim);">
+        Nilai ${entry.type === 'Minimasi' ? 'Minimum' : 'Maksimum'} Z = 
+        <strong style="color:var(--gold);font-size:20px;font-family:'JetBrains Mono',monospace;">
+          ${entry.result.z !== undefined ? entry.result.z.toFixed(4) : '—'}
+        </strong>
+      </div>
+    </div>` : '';
 
   const detailContent = hasDetail
     ? entry.fullHtml
-    : `<div style="padding:20px;background:var(--panel2);border-radius:10px;border:1px solid var(--border);font-size:13px;color:var(--muted);font-style:italic;">
-        💡 Detail langkah penyelesaian tersimpan mulai sesi ini. Riwayat lama hanya menyimpan ringkasan hasil.
+    : `<div style="padding:20px;background:var(--panel2);border-radius:12px;border:1px solid var(--border);
+        font-size:13px;color:var(--muted);font-style:italic;text-align:center;line-height:1.8;">
+        💡 Detail langkah penyelesaian tersimpan mulai sesi ini.<br>
+        Riwayat lama hanya menyimpan ringkasan hasil.
       </div>`;
 
-  const modal = `<div class="modal-overlay" id="sxModal" onclick="if(event.target===this)closeSxModal()">
-    <div class="modal-box">
-      <div class="modal-head">
-        <div>
-          <div class="modal-head-title">📊 Simplex — ${entry.type}</div>
-          <div class="modal-head-meta">${t} · Z = ${entry.objective}</div>
+  // Buat modal element langsung (bukan innerHTML injection)
+  const overlay = document.createElement('div');
+  overlay.id = 'sxModal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 9000;
+    background: rgba(8,12,24,0.9);
+    backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    animation: fadeIn 0.2s ease both;
+  `;
+  overlay.onclick = function(e) { if (e.target === overlay) closeSxModal(); };
+
+  overlay.innerHTML = `
+    <div style="
+      background: #0f1624;
+      border: 1px solid rgba(201,168,76,0.4);
+      border-radius: 20px;
+      width: 100%; max-width: 900px;
+      max-height: 88vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+      position: relative; overflow: hidden;
+      font-family: 'DM Sans', sans-serif;
+    ">
+      <!-- Top gold line -->
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;
+        background:linear-gradient(90deg,transparent,#c9a84c,transparent);"></div>
+
+      <!-- HEADER -->
+      <div style="
+        display:flex; align-items:center; justify-content:space-between;
+        padding:18px 24px; background:#161f30;
+        border-bottom:1px solid rgba(201,168,76,0.15);
+        flex-shrink:0;
+      ">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:40px;height:40px;border-radius:10px;
+            background:linear-gradient(135deg,rgba(201,168,76,0.2),rgba(201,168,76,0.05));
+            border:1px solid rgba(201,168,76,0.3);
+            display:flex;align-items:center;justify-content:center;font-size:18px;">📊</div>
+          <div>
+            <div style="font-family:'Playfair Display',serif;font-size:17px;color:#ece9e0;">
+              Simplex — ${entry.type}
+            </div>
+            <div style="font-size:12px;color:#6a7590;margin-top:2px;">${t}</div>
+          </div>
         </div>
-        <button class="modal-close" onclick="closeSxModal()">✕</button>
+        <button onclick="closeSxModal()" style="
+          width:34px;height:34px;border-radius:8px;
+          border:1px solid rgba(201,168,76,0.2);
+          background:rgba(201,168,76,0.05);
+          color:#6a7590;font-size:16px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(248,113,113,0.15)';this.style.borderColor='rgba(248,113,113,0.3)';this.style.color='#f87171'"
+          onmouseout="this.style.background='rgba(201,168,76,0.05)';this.style.borderColor='rgba(201,168,76,0.2)';this.style.color='#6a7590'">
+          ✕
+        </button>
       </div>
-      <div class="modal-body" id="sxModalBody">
+
+      <!-- BODY -->
+      <div id="sxModalBody" style="
+        overflow-y:auto; padding:24px; flex:1;
+        scrollbar-width:thin; scrollbar-color:rgba(201,168,76,0.3) transparent;
+      ">
         ${solSummary}
         ${detailContent}
       </div>
-      <div class="modal-foot">
-        ${hasDetail
-          ? `<button class="btn-md btn-md-dl" style="background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;" onclick="exportSxModalPDF()">📄 Unduh PDF</button>`
-          : ''}
-        <button class="btn-md btn-md-dl" onclick="downloadSingleHistory('${id}')">⬇ Unduh .txt</button>
-        <button class="btn-md btn-md-del" onclick="deleteHistoryItem('${id}');closeSxModal()">Hapus</button>
+
+      <!-- FOOTER -->
+      <div style="
+        padding:16px 24px;
+        border-top:1px solid rgba(201,168,76,0.15);
+        background:#161f30;
+        display:flex; align-items:center; gap:10px;
+        flex-shrink:0; flex-wrap:wrap;
+      ">
+        <div style="flex:1;font-size:12px;color:#4a5568;">
+          ${entry.constraints ? entry.constraints.length + ' batasan' : ''}
+          ${hasDetail ? ' · <span style="color:rgba(74,222,128,0.8);">✓ detail lengkap</span>' : ''}
+        </div>
+
+        ${hasDetail ? `
+        <button onclick="exportSxModalPDF()" style="
+          display:inline-flex;align-items:center;gap:8px;
+          padding:9px 18px;border-radius:9px;
+          background:linear-gradient(135deg,#c0392b,#e74c3c);
+          border:none;color:#fff;
+          font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
+          cursor:pointer;transition:opacity 0.2s,transform 0.15s;
+        " onmouseover="this.style.opacity='0.85';this.style.transform='translateY(-1px)'"
+          onmouseout="this.style.opacity='1';this.style.transform='translateY(0)'">
+          📄 Unduh PDF
+        </button>` : ''}
+
+        <button onclick="downloadSingleHistory('${id}')" style="
+          display:inline-flex;align-items:center;gap:8px;
+          padding:9px 18px;border-radius:9px;
+          background:rgba(201,168,76,0.1);
+          border:1px solid rgba(201,168,76,0.3);color:#c9a84c;
+          font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+          cursor:pointer;transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(201,168,76,0.2)'"
+          onmouseout="this.style.background='rgba(201,168,76,0.1)'">
+          ⬇ Unduh .txt
+        </button>
+
+        <button onclick="deleteHistoryItem('${id}');closeSxModal()" style="
+          display:inline-flex;align-items:center;gap:8px;
+          padding:9px 18px;border-radius:9px;
+          background:transparent;
+          border:1px solid rgba(248,113,113,0.25);color:#f87171;
+          font-family:'DM Sans',sans-serif;font-size:13px;
+          cursor:pointer;transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(248,113,113,0.1)'"
+          onmouseout="this.style.background='transparent'">
+          🗑 Hapus
+        </button>
       </div>
     </div>
-  </div>`;
+  `;
 
-  document.body.insertAdjacentHTML('beforeend', modal);
+  document.body.appendChild(overlay);
   document.body.style.overflow = 'hidden';
 }
 
@@ -640,7 +756,26 @@ function closeSxModal() {
 
 function exportSxModalPDF() {
   if (typeof exportToPDF !== 'function') { alert('Library PDF belum siap.'); return; }
-  exportToPDF('sxModalBody', 'TRO_Simplex_Detail', null);
+
+  // Ambil konten dari dalam modal
+  var modalBody = document.getElementById('sxModalBody');
+  if (!modalBody) return;
+
+  // Buat div sementara di LUAR modal (tidak punya overflow:hidden)
+  // sehingga html2canvas bisa capture SELURUH konten, bukan hanya yang terlihat
+  var tmp = document.createElement('div');
+  tmp.id = '_sxPdfTemp';
+  tmp.style.cssText = 'position:fixed;top:-99999px;left:0;width:860px;z-index:-1;background:#0f1624;padding:32px 36px;';
+  tmp.innerHTML = modalBody.innerHTML;
+  document.body.appendChild(tmp);
+
+  exportToPDF('_sxPdfTemp', 'TRO_Simplex_Detail', null);
+
+  // Hapus setelah selesai (beri waktu export selesai)
+  setTimeout(function() {
+    var el = document.getElementById('_sxPdfTemp');
+    if (el) el.remove();
+  }, 15000);
 }
 
 // ── RENDER HISTORY PANEL ──
@@ -650,39 +785,119 @@ function renderHistoryPanel() {
   const h = getSimplexHistory();
 
   if (!h.length) {
-    c.innerHTML = '<div class="history-empty">Belum ada riwayat. Selesaikan perhitungan pertama.</div>';
+    c.innerHTML = `
+      <div style="padding:32px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:10px;opacity:0.4;">📊</div>
+        <div style="font-size:13px;color:var(--muted);font-style:italic;">
+          Belum ada riwayat. Selesaikan perhitungan pertama.
+        </div>
+      </div>`;
     return;
   }
 
-  let html = `<div class="history-actions-bar">
-    <span class="history-count">${h.length} riwayat tersimpan</span>
-    <div style="display:flex;gap:8px;">
-      <button class="btn-hist-action btn-dl" onclick="downloadHistory()">⬇ Unduh .txt</button>
-      <button class="btn-hist-action btn-clr" onclick="clearAllHistory()">🗑 Hapus Semua</button>
+  // Header dengan counter dan aksi
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:12px 20px;background:rgba(201,168,76,0.04);
+      border-bottom:1px solid rgba(201,168,76,0.1);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--muted);">${h.length} riwayat tersimpan</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="downloadHistory()" style="
+          padding:5px 12px;border-radius:7px;font-size:11px;cursor:pointer;
+          font-family:'DM Sans',sans-serif;
+          background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);color:var(--gold);
+          transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(201,168,76,0.2)'"
+          onmouseout="this.style.background='rgba(201,168,76,0.1)'">⬇ Unduh .txt</button>
+        <button onclick="clearAllHistory()" style="
+          padding:5px 12px;border-radius:7px;font-size:11px;cursor:pointer;
+          font-family:'DM Sans',sans-serif;
+          background:transparent;border:1px solid rgba(248,113,113,0.2);color:#f87171;
+          transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(248,113,113,0.1)'"
+          onmouseout="this.style.background='transparent'">🗑 Hapus Semua</button>
+      </div>
     </div>
-  </div><div class="history-list">`;
+    <div style="max-height:320px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(201,168,76,0.3) transparent;">`;
 
-  h.forEach(e => {
+  h.forEach((e, idx) => {
     const t = new Date(e.timestamp).toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    const zStr = e.result && e.result.z !== undefined ? `Z = ${e.result.z.toFixed(3)}` : '';
+    const zStr = e.result && e.result.z !== undefined ? e.result.z.toFixed(3) : '';
     const hasDetail = !!e.fullHtml;
-    html += `<div class="history-item" onclick="openSimplexModal('${e.id}')" style="cursor:pointer;">
-      <div class="history-item-left">
-        <div class="history-item-icon">📊</div>
-        <div>
-          <div class="history-item-title">${e.type} — Z = ${e.objective}</div>
-          <div class="history-item-meta">${t} &nbsp;·&nbsp; ${e.constraints?e.constraints.length:0} batasan${hasDetail?' &nbsp;·&nbsp; <span style="color:var(--success);font-size:11px;">✓ detail</span>':''}</div>
+    const isMax = e.type === 'Maksimasi';
+
+    html += `
+      <div onclick="openSimplexModal('${e.id}')" style="
+        display:flex;align-items:center;gap:14px;
+        padding:14px 20px;cursor:pointer;
+        border-bottom:1px solid rgba(201,168,76,0.06);
+        transition:background 0.18s;position:relative;
+      " onmouseover="this.style.background='rgba(201,168,76,0.05)'"
+         onmouseout="this.style.background='transparent'">
+
+        <!-- Icon -->
+        <div style="
+          width:38px;height:38px;border-radius:10px;flex-shrink:0;
+          background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);
+          display:flex;align-items:center;justify-content:center;font-size:16px;
+        ">📊</div>
+
+        <!-- Info -->
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;color:var(--text);font-weight:500;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;">
+            ${e.type}
+            <span style="color:var(--muted);font-weight:400;"> — </span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);">
+              Z = ${e.objective}
+            </span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);">
+            ${t}
+            ${e.constraints ? `<span style="margin:0 6px;opacity:0.4;">·</span>${e.constraints.length} batasan` : ''}
+            ${hasDetail ? `<span style="margin:0 6px;opacity:0.4;">·</span><span style="color:rgba(74,222,128,0.7);">✓ detail</span>` : ''}
+          </div>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        ${zStr ? `<div class="history-item-z">${zStr}</div>` : ''}
-        <button class="history-del-btn" onclick="event.stopPropagation();deleteHistoryItem('${e.id}')" title="Hapus">✕</button>
-      </div>
-    </div>`;
+
+        <!-- Z value badge -->
+        ${zStr ? `
+          <div style="
+            flex-shrink:0;
+            background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);
+            border-radius:8px;padding:5px 10px;text-align:center;
+          ">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">${isMax?'Maks':'Min'}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);font-weight:600;">${zStr}</div>
+          </div>` : ''}
+
+        <!-- Hapus button -->
+        <button onclick="event.stopPropagation();deleteHistoryItem('${e.id}')" style="
+          flex-shrink:0;
+          width:28px;height:28px;border-radius:7px;
+          border:1px solid rgba(248,113,113,0.15);
+          background:transparent;color:rgba(248,113,113,0.4);
+          font-size:13px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all 0.2s;opacity:0;
+        " class="sx-del-btn-${e.id}"
+          onmouseover="this.style.background='rgba(248,113,113,0.15)';this.style.color='#f87171'"
+          onmouseout="this.style.background='transparent';this.style.color='rgba(248,113,113,0.4)'">✕</button>
+
+      </div>`;
   });
 
   html += '</div>';
   c.innerHTML = html;
+
+  // Tampilkan tombol hapus saat hover item
+  c.querySelectorAll('[onclick^="openSimplexModal"]').forEach(item => {
+    const btn = item.querySelector('button[class^="sx-del-btn"]');
+    if (!btn) return;
+    item.addEventListener('mouseenter', () => btn.style.opacity = '1');
+    item.addEventListener('mouseleave', () => btn.style.opacity = '0');
+  });
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSxModal(); });
