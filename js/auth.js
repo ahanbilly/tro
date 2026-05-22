@@ -9,6 +9,7 @@ const ACCOUNTS = [
   { username: 'user1',  password: 'riset123',  name: 'Pengguna Satu',   role: 'user'  },
   { username: 'dosen',  password: 'dosen2024', name: 'Dosen TRO',       role: 'admin' },
   { username: 'ahan',   password: 'ahan123',   name: 'Ahan',            role: 'user'  },
+  { username: 'suci',   password: 'jelek123',   name: 'Suci',            role: 'user'  },
 ];
 
 // ── Deteksi base path otomatis ──
