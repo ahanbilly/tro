@@ -24,13 +24,14 @@ function renderForm() {
   objHtml += '</div>';
   document.getElementById('objInputs').innerHTML = objHtml;
 
+  // ✅ PERBAIKAN: def dan value="${i<2?def:0}" dipindah ke dalam loop i
   let consHtml = '';
   for (let j = 0; j < m; j++) {
     consHtml += `<div class="constraint-row">`;
     for (let i = 0; i < n; i++) {
-      const def = j===0?(i===0?2:1):(i===0?1:2);
+      const def = j===0 ? (i===0 ? 2 : 1) : (i===0 ? 1 : 2);
       consHtml += `<div class="eq-term">
-        <input type="number" id="con_${j}_${i}" placeholder="0" value="${i<2?def:0}" class="coef-input"/>
+        <input type="number" id="con_${j}_${i}" placeholder="0" value="${i < 2 ? def : 0}" class="coef-input"/>
         <span class="var-label">x<sub>${i+1}</sub></span>
         ${i < n-1 ? '<span class="op">+</span>' : ''}
       </div>`;
@@ -509,9 +510,6 @@ function extractSol(tableau, basis, n, isMin) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// HISTORY
-
-// ─────────────────────────────────────────────────────────────
 // HISTORY — tersimpan penuh, klik → modal, modal → unduh PDF
 // ─────────────────────────────────────────────────────────────
 const HISTORY_KEY = 'tro_simplex_history';
@@ -586,7 +584,6 @@ function openSimplexModal(id) {
   const entry = getSimplexHistory().find(e => e.id === id);
   if (!entry) return;
 
-  // Hapus modal lama jika ada
   const existing = document.getElementById('sxModal');
   if (existing) existing.remove();
 
@@ -602,12 +599,12 @@ function openSimplexModal(id) {
         ${(entry.result.variables||[]).map((v,i)=>`
           <div style="display:flex;flex-direction:column;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:72px;">
             <span style="font-size:11px;color:var(--muted);margin-bottom:5px;">x<sub>${i+1}</sub></span>
-            <strong style="font-size:20px;color:var(--text);font-family:'JetBrains Mono',monospace;">${v.toFixed(4)}</strong>
+            <strong style="font-size:20px;color:var(--text);">${v.toFixed(4)}</strong>
           </div>`).join('')}
       </div>
-      <div style="font-size:15px;color:var(--text-dim);">
-        Nilai ${entry.type === 'Minimasi' ? 'Minimum' : 'Maksimum'} Z = 
-        <strong style="color:var(--gold);font-size:20px;font-family:'JetBrains Mono',monospace;">
+      <div style="font-size:15px;color:var(--text);">
+        Nilai ${entry.type === 'Minimasi' ? 'Minimum' : 'Maksimum'} Z =
+        <strong style="color:var(--gold);font-size:20px;">
           ${entry.result.z !== undefined ? entry.result.z.toFixed(4) : '—'}
         </strong>
       </div>
@@ -621,7 +618,6 @@ function openSimplexModal(id) {
         Riwayat lama hanya menyimpan ringkasan hasil.
       </div>`;
 
-  // Buat modal element langsung (bukan innerHTML injection)
   const overlay = document.createElement('div');
   overlay.id = 'sxModal';
   overlay.style.cssText = `
@@ -630,7 +626,6 @@ function openSimplexModal(id) {
     backdrop-filter: blur(12px);
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
-    animation: fadeIn 0.2s ease both;
   `;
   overlay.onclick = function(e) { if (e.target === overlay) closeSxModal(); };
 
@@ -646,11 +641,9 @@ function openSimplexModal(id) {
       position: relative; overflow: hidden;
       font-family: 'DM Sans', sans-serif;
     ">
-      <!-- Top gold line -->
       <div style="position:absolute;top:0;left:0;right:0;height:2px;
         background:linear-gradient(90deg,transparent,#c9a84c,transparent);"></div>
 
-      <!-- HEADER -->
       <div style="
         display:flex; align-items:center; justify-content:space-between;
         padding:18px 24px; background:#161f30;
@@ -659,8 +652,7 @@ function openSimplexModal(id) {
       ">
         <div style="display:flex;align-items:center;gap:14px;">
           <div style="width:40px;height:40px;border-radius:10px;
-            background:linear-gradient(135deg,rgba(201,168,76,0.2),rgba(201,168,76,0.05));
-            border:1px solid rgba(201,168,76,0.3);
+            background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);
             display:flex;align-items:center;justify-content:center;font-size:18px;">📊</div>
           <div>
             <div style="font-family:'Playfair Display',serif;font-size:17px;color:#ece9e0;">
@@ -675,14 +667,9 @@ function openSimplexModal(id) {
           background:rgba(201,168,76,0.05);
           color:#6a7590;font-size:16px;cursor:pointer;
           display:flex;align-items:center;justify-content:center;
-          transition:all 0.2s;
-        " onmouseover="this.style.background='rgba(248,113,113,0.15)';this.style.borderColor='rgba(248,113,113,0.3)';this.style.color='#f87171'"
-          onmouseout="this.style.background='rgba(201,168,76,0.05)';this.style.borderColor='rgba(201,168,76,0.2)';this.style.color='#6a7590'">
-          ✕
-        </button>
+        ">✕</button>
       </div>
 
-      <!-- BODY -->
       <div id="sxModalBody" style="
         overflow-y:auto; padding:24px; flex:1;
         scrollbar-width:thin; scrollbar-color:rgba(201,168,76,0.3) transparent;
@@ -691,7 +678,6 @@ function openSimplexModal(id) {
         ${detailContent}
       </div>
 
-      <!-- FOOTER -->
       <div style="
         padding:16px 24px;
         border-top:1px solid rgba(201,168,76,0.15);
@@ -711,11 +697,8 @@ function openSimplexModal(id) {
           background:linear-gradient(135deg,#c0392b,#e74c3c);
           border:none;color:#fff;
           font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
-          cursor:pointer;transition:opacity 0.2s,transform 0.15s;
-        " onmouseover="this.style.opacity='0.85';this.style.transform='translateY(-1px)'"
-          onmouseout="this.style.opacity='1';this.style.transform='translateY(0)'">
-          📄 Unduh PDF
-        </button>` : ''}
+          cursor:pointer;
+        ">📄 Unduh PDF</button>` : ''}
 
         <button onclick="downloadSingleHistory('${id}')" style="
           display:inline-flex;align-items:center;gap:8px;
@@ -723,11 +706,8 @@ function openSimplexModal(id) {
           background:rgba(201,168,76,0.1);
           border:1px solid rgba(201,168,76,0.3);color:#c9a84c;
           font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
-          cursor:pointer;transition:all 0.2s;
-        " onmouseover="this.style.background='rgba(201,168,76,0.2)'"
-          onmouseout="this.style.background='rgba(201,168,76,0.1)'">
-          ⬇ Unduh .txt
-        </button>
+          cursor:pointer;
+        ">⬇ Unduh .txt</button>
 
         <button onclick="deleteHistoryItem('${id}');closeSxModal()" style="
           display:inline-flex;align-items:center;gap:8px;
@@ -735,11 +715,8 @@ function openSimplexModal(id) {
           background:transparent;
           border:1px solid rgba(248,113,113,0.25);color:#f87171;
           font-family:'DM Sans',sans-serif;font-size:13px;
-          cursor:pointer;transition:all 0.2s;
-        " onmouseover="this.style.background='rgba(248,113,113,0.1)'"
-          onmouseout="this.style.background='transparent'">
-          🗑 Hapus
-        </button>
+          cursor:pointer;
+        ">🗑 Hapus</button>
       </div>
     </div>
   `;
@@ -756,22 +733,14 @@ function closeSxModal() {
 
 function exportSxModalPDF() {
   if (typeof exportToPDF !== 'function') { alert('Library PDF belum siap.'); return; }
-
-  // Ambil konten dari dalam modal
   var modalBody = document.getElementById('sxModalBody');
   if (!modalBody) return;
-
-  // Buat div sementara di LUAR modal (tidak punya overflow:hidden)
-  // sehingga html2canvas bisa capture SELURUH konten, bukan hanya yang terlihat
   var tmp = document.createElement('div');
   tmp.id = '_sxPdfTemp';
   tmp.style.cssText = 'position:fixed;top:-99999px;left:0;width:860px;z-index:-1;background:#0f1624;padding:32px 36px;';
   tmp.innerHTML = modalBody.innerHTML;
   document.body.appendChild(tmp);
-
   exportToPDF('_sxPdfTemp', 'TRO_Simplex_Detail', null);
-
-  // Hapus setelah selesai (beri waktu export selesai)
   setTimeout(function() {
     var el = document.getElementById('_sxPdfTemp');
     if (el) el.remove();
@@ -795,34 +764,27 @@ function renderHistoryPanel() {
     return;
   }
 
-  // Header dengan counter dan aksi
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;
       padding:12px 20px;background:rgba(201,168,76,0.04);
       border-bottom:1px solid rgba(201,168,76,0.1);">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:11px;color:var(--muted);">${h.length} riwayat tersimpan</span>
-      </div>
+      <span style="font-size:11px;color:var(--muted);">${h.length} riwayat tersimpan</span>
       <div style="display:flex;gap:8px;">
         <button onclick="downloadHistory()" style="
           padding:5px 12px;border-radius:7px;font-size:11px;cursor:pointer;
           font-family:'DM Sans',sans-serif;
           background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);color:var(--gold);
-          transition:all 0.2s;
-        " onmouseover="this.style.background='rgba(201,168,76,0.2)'"
-          onmouseout="this.style.background='rgba(201,168,76,0.1)'">⬇ Unduh .txt</button>
+        ">⬇ Unduh .txt</button>
         <button onclick="clearAllHistory()" style="
           padding:5px 12px;border-radius:7px;font-size:11px;cursor:pointer;
           font-family:'DM Sans',sans-serif;
           background:transparent;border:1px solid rgba(248,113,113,0.2);color:#f87171;
-          transition:all 0.2s;
-        " onmouseover="this.style.background='rgba(248,113,113,0.1)'"
-          onmouseout="this.style.background='transparent'">🗑 Hapus Semua</button>
+        ">🗑 Hapus Semua</button>
       </div>
     </div>
     <div style="max-height:320px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(201,168,76,0.3) transparent;">`;
 
-  h.forEach((e, idx) => {
+  h.forEach((e) => {
     const t = new Date(e.timestamp).toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
     const zStr = e.result && e.result.z !== undefined ? e.result.z.toFixed(3) : '';
     const hasDetail = !!e.fullHtml;
@@ -833,35 +795,28 @@ function renderHistoryPanel() {
         display:flex;align-items:center;gap:14px;
         padding:14px 20px;cursor:pointer;
         border-bottom:1px solid rgba(201,168,76,0.06);
-        transition:background 0.18s;position:relative;
+        transition:background 0.18s;
       " onmouseover="this.style.background='rgba(201,168,76,0.05)'"
          onmouseout="this.style.background='transparent'">
 
-        <!-- Icon -->
         <div style="
           width:38px;height:38px;border-radius:10px;flex-shrink:0;
           background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);
           display:flex;align-items:center;justify-content:center;font-size:16px;
         ">📊</div>
 
-        <!-- Info -->
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;color:var(--text);font-weight:500;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;">
-            ${e.type}
-            <span style="color:var(--muted);font-weight:400;"> — </span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);">
-              Z = ${e.objective}
-            </span>
+            ${e.type} — <span style="font-size:12px;color:var(--muted);">Z = ${e.objective}</span>
           </div>
           <div style="font-size:11px;color:var(--muted);">
             ${t}
-            ${e.constraints ? `<span style="margin:0 6px;opacity:0.4;">·</span>${e.constraints.length} batasan` : ''}
-            ${hasDetail ? `<span style="margin:0 6px;opacity:0.4;">·</span><span style="color:rgba(74,222,128,0.7);">✓ detail</span>` : ''}
+            ${e.constraints ? `· ${e.constraints.length} batasan` : ''}
+            ${hasDetail ? `· <span style="color:rgba(74,222,128,0.7);">✓ detail</span>` : ''}
           </div>
         </div>
 
-        <!-- Z value badge -->
         ${zStr ? `
           <div style="
             flex-shrink:0;
@@ -869,35 +824,21 @@ function renderHistoryPanel() {
             border-radius:8px;padding:5px 10px;text-align:center;
           ">
             <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">${isMax?'Maks':'Min'}</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--gold);font-weight:600;">${zStr}</div>
+            <div style="font-size:13px;color:var(--gold);font-weight:600;">${zStr}</div>
           </div>` : ''}
 
-        <!-- Hapus button -->
         <button onclick="event.stopPropagation();deleteHistoryItem('${e.id}')" style="
-          flex-shrink:0;
-          width:28px;height:28px;border-radius:7px;
+          flex-shrink:0;width:28px;height:28px;border-radius:7px;
           border:1px solid rgba(248,113,113,0.15);
-          background:transparent;color:rgba(248,113,113,0.4);
+          background:transparent;color:rgba(248,113,113,0.5);
           font-size:13px;cursor:pointer;
           display:flex;align-items:center;justify-content:center;
-          transition:all 0.2s;opacity:0;
-        " class="sx-del-btn-${e.id}"
-          onmouseover="this.style.background='rgba(248,113,113,0.15)';this.style.color='#f87171'"
-          onmouseout="this.style.background='transparent';this.style.color='rgba(248,113,113,0.4)'">✕</button>
-
+        " title="Hapus">✕</button>
       </div>`;
   });
 
   html += '</div>';
   c.innerHTML = html;
-
-  // Tampilkan tombol hapus saat hover item
-  c.querySelectorAll('[onclick^="openSimplexModal"]').forEach(item => {
-    const btn = item.querySelector('button[class^="sx-del-btn"]');
-    if (!btn) return;
-    item.addEventListener('mouseenter', () => btn.style.opacity = '1');
-    item.addEventListener('mouseleave', () => btn.style.opacity = '0');
-  });
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSxModal(); });
