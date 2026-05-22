@@ -201,25 +201,17 @@
       .step-block { padding:20px 16px; }
       .sub-block { padding:16px 14px; }
     }
-    /* ── MODAL ── */
-    .modal-overlay { position:fixed;inset:0;z-index:500;background:rgba(8,12,24,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease both; }
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-    .modal-box { background:var(--panel);border:1px solid rgba(201,168,76,.4);border-radius:24px;width:100%;max-width:960px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 40px 100px rgba(0,0,0,.7);animation:fadeUp .3s cubic-bezier(.16,1,.3,1) both;position:relative;overflow:hidden; }
-    .modal-box::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent); }
-    .modal-head { display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);background:var(--panel2);flex-shrink:0; }
-    .modal-head-title { font-family:'Playfair Display',serif;font-size:17px;color:var(--text); }
-    .modal-head-meta { font-size:12px;color:var(--muted);margin-top:3px; }
-    .modal-close { width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0; }
-    .modal-close:hover { background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3);color:#f87171; }
-    .modal-body { overflow-y:auto;padding:24px;flex:1; }
-    .modal-body::-webkit-scrollbar{width:5px} .modal-body::-webkit-scrollbar-thumb{background:rgba(201,168,76,.4);border-radius:5px}
-    .modal-foot { padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;background:var(--panel2);flex-shrink:0; }
-    .btn-md { padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s; }
-    .btn-md-dl { background:var(--panel);border:1px solid var(--border);color:var(--text); }
-    .btn-md-dl:hover { border-color:rgba(201,168,76,.4);color:var(--gold); }
-    .btn-md-del { background:transparent;border:1px solid rgba(248,113,113,.25);color:#f87171; }
-    .btn-md-del:hover { background:rgba(248,113,113,.1); }
+
+    /* PDF Bar */
+    .pdf-bar { display:none; align-items:center; gap:14px; margin-bottom:20px; padding:13px 18px; background:var(--panel); border:1px solid var(--border); border-radius:11px; }
+    .pdf-bar span { font-size:13px; color:var(--muted); flex:1; }
+    .btn-pdf { padding:9px 20px; background:linear-gradient(135deg,#c0392b,#e74c3c); border:none; border-radius:8px; color:#fff; font-family:"DM Sans",sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:opacity .2s,transform .15s; white-space:nowrap; }
+    .btn-pdf:hover { opacity:.88; transform:translateY(-1px); }
+    .btn-pdf:disabled { opacity:.5; cursor:not-allowed; transform:none; }
   </style>
+  <!-- PDF Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -278,6 +270,12 @@
     <button class="btn-solve" onclick="solveSimplex()">⚡ Selesaikan — Tampilkan Langkah Lengkap</button>
   </div>
 
+  <!-- Tombol PDF -->
+  <div class="pdf-bar" id="pdfBar">
+    <span>📄 Hasil siap diunduh sebagai PDF</span>
+    <button class="btn-pdf" id="btnPdfSimplex" onclick="exportSimplexPDF()">⬇ Unduh PDF</button>
+  </div>
+
   <div id="simplexResult"></div>
 
   <div class="history-section">
@@ -288,11 +286,8 @@
   </div>
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/exportpdf.js"></script>
-<script src="js/simplex.js"></script>
+<script src="js/Simplex.js"></script>
 <script>
   const s = getSession();
   if (s) {
@@ -301,6 +296,17 @@
   }
   initSimplex();
   renderHistoryPanel();
+</script>
+<script src="js/exportpdf.js"></script>
+<script>
+  // Tampilkan tombol PDF setelah hasil muncul
+  (function(){
+    var _orig = window.renderAllSteps;
+    window.renderAllSteps = function(steps){
+      _orig(steps);
+      document.getElementById('pdfBar').style.display = 'flex';
+    };
+  })();
 </script>
 </body>
 </html>
